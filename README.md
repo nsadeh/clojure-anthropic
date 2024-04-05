@@ -1,14 +1,21 @@
 # clojure-anthropic
 
-A Clojure library designed to ... well, that part is up to you.
+A Clojure interface for the [Anthropic API](https://docs.anthropic.com/claude/reference/getting-started-with-the-api)
+
+This package was quickly developed and is in pre-alpha. Feel free to use, but I make no guarantees about reliability/performance and whether it will continue to be maintained.
 
 ## Usage
 
-FIXME
+Currently, the only endpoint we support is the [messages](https://docs.anthropic.com/claude/reference/messages_post) endpoint. It mirrors the API documentation closely.
+
+## Todos
+
+- [ ] Unit and integration tests
+- [ ] Support for multiple API versions
 
 ## License
 
-Copyright © 2024 FIXME
+Copyright © 2024 nsadeh
 
 This program and the accompanying materials are made available under the
 terms of the Eclipse Public License 2.0 which is available at
