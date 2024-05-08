@@ -3,6 +3,7 @@
    [aleph.http :as http]
    [cheshire.core :as cheshire]
    [clj-commons.byte-streams :as bs]
+   [clojure.java.io :as io]
    [clojure.string :as str]
    [manifold.deferred :as d]
    [manifold.stream :as streaming]))
@@ -13,15 +14,16 @@
   "2023-06-01")
 
 (defn- make-body
-  [model max-tokens stream? messages]
-  (cheshire/generate-string {:model model
+  [system model max-tokens stream? messages]
+  (cheshire/generate-string {:system system
+                             :model model
                              :max_tokens max-tokens
                              :messages messages
                              :stream stream?}))
 
 (defn- make-request
-  [api-key model max-tokens stream? messages]
-  {:body (make-body model max-tokens stream? messages)
+  [system api-key model max-tokens stream? messages]
+  {:body (make-body system model max-tokens stream? messages)
    :headers {"x-api-key" api-key,
              "anthropic-version" anthropic-api-version}
    :content-type :json})
@@ -49,24 +51,34 @@
            (partial streaming/filter some?)))
 
 (defn messages
-  [& {:keys [message-list model api-key max-tokens async? stream?]
-      :or {model "claude-3-sonnet-20240229"
+  [& {:keys [message-list system model api-key max-tokens async? stream?]
+      :or {system "You are a helpful assistant"
+           model "claude-3-sonnet-20240229"
            api-key (System/getenv "ANTHROPIC_API_KEY")
            max-tokens 1024
            async? false
            stream? false}
       :as arguments}]
-  (let [base-request (make-request api-key model max-tokens stream? message-list)]
-    (if async?
-      (if stream?
-        (-> (http/post messages-endpoint base-request)
-            (parse-anthropic-streaming-response))
-        (-> (http/post messages-endpoint  base-request)
-            (parse-anthropic-response)))
-      @(messages (assoc arguments :async? true)))))
+  (try (let [base-request (make-request system api-key model max-tokens stream? message-list)]
+         (if async?
+           (if stream?
+             (-> (http/post messages-endpoint base-request)
+                 (parse-anthropic-streaming-response))
+             (-> (http/post messages-endpoint  base-request)
+                 (parse-anthropic-response)))
+           @(messages (assoc arguments :async? true))))
+       (catch Exception e
+         (let [body (-> (ex-data e)
+                        (:body))]
+           (cond
+             (instance? java.io.ByteArrayInputStream body) (->> (io/reader body)
+                                                                (cheshire/parse-stream)
+                                                                (ex-info "Error contacting Anthropic")
+                                                                (throw))
+             :else (throw e))))))
 
 (comment
   (let [api-token (str/trim (slurp ".dev_token"))
-        payload [{"role" "user" "content" "hello, claude!"}]
+        payload [{:role "user" :content "hello, claude!"}]
         stream (messages :message-list payload :api-key api-token :stream? true  :model "claude-3-opus-20240229")]
     (streaming/consume #(prn %) stream)))
